@@ -1,0 +1,454 @@
+openapi: 3.0.3
+info:
+  title: Order Service — GoDelivery
+  version: 1.0.0
+  description: Единый рабочий учебный проект. Все денежные суммы в целых рублях.
+servers:
+- url: http://localhost:8081
+paths:
+  /health:
+    get:
+      summary: Проверить доступность процесса и собственной БД
+      operationId: health
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                    - ok
+                required:
+                - status
+                additionalProperties: false
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '503':
+          description: Database unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+      tags:
+      - Technical
+  /api/v1/menu:
+    get:
+      summary: Демонстрационное меню
+      operationId: menu
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Menu'
+              example:
+                restaurant_id: restaurant-1
+                currency: RUB
+                dishes:
+                - id: pizza-margherita
+                  name: Маргарита
+                  price: 700
+                - id: pizza-pepperoni
+                  name: Пепперони
+                  price: 900
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+      tags:
+      - Order
+  /api/v1/orders:
+    post:
+      summary: Создать заказ и синхронно выполнить оплату
+      operationId: checkout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrder'
+            examples:
+              success:
+                value:
+                  customer_id: customer-1
+                  restaurant_id: restaurant-1
+                  items: &id001
+                  - dish_id: pizza-margherita
+                    quantity: 2
+                  payment_token: tok-success
+              decline:
+                value:
+                  customer_id: customer-1
+                  restaurant_id: restaurant-1
+                  items: *id001
+                  payment_token: tok-decline
+              timeout:
+                value:
+                  customer_id: customer-1
+                  restaurant_id: restaurant-1
+                  items: *id001
+                  payment_token: tok-slow
+      responses:
+        '201':
+          description: Created and Paid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              example:
+                id: order-demo
+                customer_id: customer-1
+                restaurant_id: restaurant-1
+                items: &id002
+                - dish_id: pizza-margherita
+                  quantity: 2
+                total: 1400
+                status: Paid
+                payment_id: payment-demo
+                sequence: 0
+                created_at: '2026-10-02T12:00:00Z'
+                updated_at: '2026-10-02T12:00:00Z'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+            X-Workflow-Traceparent:
+              description: W3C context для ручного продолжения demo workflow
+              schema:
+                type: string
+        '402':
+          description: Payment declined
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderFailure'
+              example:
+                code: payment_declined
+                message: payment declined
+                order:
+                  id: order-demo
+                  customer_id: customer-1
+                  restaurant_id: restaurant-1
+                  items: *id002
+                  total: 1400
+                  status: PaymentDeclined
+                  payment_id: payment-demo
+                  sequence: 0
+                  created_at: '2026-10-02T12:00:00Z'
+                  updated_at: '2026-10-02T12:00:00Z'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+            X-Workflow-Traceparent:
+              description: W3C context для ручного продолжения demo workflow
+              schema:
+                type: string
+        '503':
+          description: Payment outcome unknown
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderFailure'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+            X-Workflow-Traceparent:
+              description: W3C context для ручного продолжения demo workflow
+              schema:
+                type: string
+        '400':
+          description: Invalid JSON
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+            X-Workflow-Traceparent:
+              description: W3C context для ручного продолжения demo workflow
+              schema:
+                type: string
+        '415':
+          description: Content-Type must be JSON
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+            X-Workflow-Traceparent:
+              description: W3C context для ручного продолжения demo workflow
+              schema:
+                type: string
+        '422':
+          description: Invalid demo order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+            X-Workflow-Traceparent:
+              description: W3C context для ручного продолжения demo workflow
+              schema:
+                type: string
+        '500':
+          description: Persistence error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+            X-Workflow-Traceparent:
+              description: W3C context для ручного продолжения demo workflow
+              schema:
+                type: string
+      tags:
+      - Order
+  /api/v1/orders/{id}:
+    get:
+      summary: Текущий status заказа (eventually consistent)
+      operationId: getOrder
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        example: order-demo
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+              example:
+                id: order-demo
+                customer_id: customer-1
+                restaurant_id: restaurant-1
+                items: *id002
+                total: 1400
+                status: Completed
+                payment_id: payment-demo
+                sequence: 5
+                created_at: '2026-10-02T12:00:00Z'
+                updated_at: '2026-10-02T12:00:00Z'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '404':
+          description: No such order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+      tags:
+      - Order
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          example: not_found
+        message:
+          type: string
+          example: Resource not found
+      required:
+      - code
+      - message
+      additionalProperties: false
+    Item:
+      type: object
+      properties:
+        dish_id:
+          type: string
+          enum:
+          - pizza-margherita
+          - pizza-pepperoni
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 20
+      required:
+      - dish_id
+      - quantity
+      additionalProperties: false
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+        customer_id:
+          type: string
+        restaurant_id:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Item'
+        total:
+          type: integer
+          format: int64
+          description: Целое число рублей; float не используется
+        status:
+          type: string
+          enum:
+          - Created
+          - Paid
+          - Accepted
+          - Cooking
+          - Ready
+          - Delivering
+          - Completed
+          - PaymentDeclined
+          - PaymentUnknown
+        payment_id:
+          type: string
+        sequence:
+          type: integer
+          minimum: 0
+          maximum: 5
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - customer_id
+      - restaurant_id
+      - items
+      - total
+      - status
+      - payment_id
+      - sequence
+      - created_at
+      - updated_at
+      additionalProperties: false
+    CreateOrder:
+      type: object
+      properties:
+        customer_id:
+          type: string
+          enum:
+          - customer-1
+        restaurant_id:
+          type: string
+          enum:
+          - restaurant-1
+        items:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/Item'
+        payment_token:
+          type: string
+          enum:
+          - tok-success
+          - tok-decline
+          - tok-slow
+      required:
+      - customer_id
+      - restaurant_id
+      - items
+      - payment_token
+      additionalProperties: false
+    OrderFailure:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        order:
+          $ref: '#/components/schemas/Order'
+      required:
+      - code
+      - message
+      - order
+      additionalProperties: false
+    Menu:
+      type: object
+      properties:
+        restaurant_id:
+          type: string
+        currency:
+          type: string
+          enum:
+          - RUB
+        dishes:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              price:
+                type: integer
+            required:
+            - id
+            - name
+            - price
+            additionalProperties: false
+      required:
+      - restaurant_id
+      - currency
+      - dishes
+      additionalProperties: false

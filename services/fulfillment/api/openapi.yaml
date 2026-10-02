@@ -1,0 +1,200 @@
+openapi: 3.0.3
+info:
+  title: Fulfillment Service — GoDelivery
+  version: 1.0.0
+  description: Единый рабочий учебный проект. Все денежные суммы в целых рублях.
+servers:
+- url: http://localhost:8083
+paths:
+  /health:
+    get:
+      summary: Проверить доступность процесса и собственной БД
+      operationId: health
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                    - ok
+                required:
+                - status
+                additionalProperties: false
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '503':
+          description: Database unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+      tags:
+      - Technical
+  /api/v1/fulfillments/{id}:
+    get:
+      summary: Получить fulfillment по order_id
+      operationId: getFulfillment
+      parameters: &id001
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        example: order-demo
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Fulfillment'
+              example:
+                id: order-demo
+                order_id: order-demo
+                status: Accepted
+                sequence: 1
+                created_at: '2026-10-02T12:00:00Z'
+                updated_at: '2026-10-02T12:00:00Z'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+      tags:
+      - Fulfillment
+  /api/v1/fulfillments/{id}/advance:
+    post:
+      summary: 'Технический demo API: один lifecycle transition'
+      operationId: advance
+      parameters: *id001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Fulfillment'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '404':
+          description: Fulfillment absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '409':
+          description: Already completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+      tags:
+      - Fulfillment
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          example: not_found
+        message:
+          type: string
+          example: Resource not found
+      required:
+      - code
+      - message
+      additionalProperties: false
+    Fulfillment:
+      type: object
+      properties:
+        id:
+          type: string
+          description: В учебном стенде равен order_id
+        order_id:
+          type: string
+        status:
+          type: string
+          enum:
+          - Accepted
+          - Cooking
+          - Ready
+          - Delivering
+          - Completed
+        sequence:
+          type: integer
+          minimum: 1
+          maximum: 5
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - order_id
+      - status
+      - sequence
+      - created_at
+      - updated_at
+      additionalProperties: false

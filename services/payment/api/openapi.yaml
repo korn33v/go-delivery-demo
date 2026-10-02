@@ -1,0 +1,268 @@
+openapi: 3.0.3
+info:
+  title: Payment Service — GoDelivery
+  version: 1.0.0
+  description: Единый рабочий учебный проект. Все денежные суммы в целых рублях.
+servers:
+- url: http://localhost:8082
+paths:
+  /health:
+    get:
+      summary: Проверить доступность процесса и собственной БД
+      operationId: health
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                    - ok
+                required:
+                - status
+                additionalProperties: false
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '503':
+          description: Database unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+      tags:
+      - Technical
+  /api/v1/payments:
+    post:
+      summary: Авторизовать demo payment; повтор по order_id возвращает прежний результат
+      operationId: authorize
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePayment'
+            example:
+              order_id: order-demo
+              total: 1400
+              token: tok-success
+      responses:
+        '201':
+          description: Succeeded or idempotent successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+              example:
+                id: payment-demo
+                order_id: order-demo
+                total: 1400
+                status: Succeeded
+                created_at: '2026-10-02T12:00:00Z'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '402':
+          description: Declined
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentFailure'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '400':
+          description: Invalid JSON
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '415':
+          description: Content-Type must be JSON
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '422':
+          description: Invalid payment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '409':
+          description: Repeated order_id with another amount
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '503':
+          description: Operation unavailable or cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+      tags:
+      - Payment
+  /api/v1/payments/{id}:
+    get:
+      summary: Получить payment
+      operationId: getPayment
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        example: payment-demo
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          headers:
+            X-Trace-ID:
+              description: Trace ID для поиска в Jaeger/Loki
+              schema:
+                type: string
+      tags:
+      - Payment
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          example: not_found
+        message:
+          type: string
+          example: Resource not found
+      required:
+      - code
+      - message
+      additionalProperties: false
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+        order_id:
+          type: string
+        total:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+          - Succeeded
+          - Declined
+        created_at:
+          type: string
+          format: date-time
+      required:
+      - id
+      - order_id
+      - total
+      - status
+      - created_at
+      additionalProperties: false
+    CreatePayment:
+      type: object
+      properties:
+        order_id:
+          type: string
+          maxLength: 100
+        total:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 1000000
+        token:
+          type: string
+          enum:
+          - tok-success
+          - tok-decline
+          - tok-slow
+      required:
+      - order_id
+      - total
+      - token
+      additionalProperties: false
+    PaymentFailure:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        payment:
+          $ref: '#/components/schemas/Payment'
+      required:
+      - code
+      - message
+      - payment
+      additionalProperties: false

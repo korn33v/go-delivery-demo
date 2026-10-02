@@ -1,0 +1,9 @@
+tooling
+.git
+.idea
+.vscode
+.demo
+bin
+tmp
+coverage
+*.zip
